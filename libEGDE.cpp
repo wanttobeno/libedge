@@ -23,6 +23,8 @@
 
 #define ARRSIZEOF(x) (sizeof(x)/sizeof(x[0]))
 
+
+int ReadEgdeHomePageUrl();
 BOOL SHGetUserSID(LPTSTR pSid, DWORD cchSize)
 {
 	if (pSid == NULL || cchSize == 0)
@@ -391,7 +393,7 @@ b64_encode (const unsigned char *src, size_t len) {
 }
 
 
-char __stdcall EscapeString(char **pszEscaped, const char *szBuffer)
+char __stdcall UrlCode(char **pszEscaped, const char *szBuffer)
 {
 	const char *v2; // ebp@1
 	char v3; // al@1
@@ -547,80 +549,81 @@ LABEL_33:
 
 
 // 
-unsigned int ObfuscateData(BYTE *data, unsigned int dataSize, BYTE **obfuscatedData, unsigned int *obfuscatedDataSize)
+unsigned int ObfuscateData(BYTE *pInData, unsigned int nInDataSize, BYTE **obfuscatedData, unsigned int *obfuscatedDataSize)
 {
-	unsigned int v5; // ebp@1
-	SIZE_T v6; // ebx@1
-	unsigned int v7; // edi@1
-	BYTE *v8; // esi@1
-	HANDLE v9; // eax@1
-	BYTE *v10; // eax@1
-	unsigned int v11; // ebx@2
-	unsigned int v12; // edx@2
-	BYTE *i; // ecx@2
-	char v14; // al@4
-	unsigned int v15; // edx@6
-	int v16; // ecx@7
-	char v17; // al@8
-	unsigned int result; // eax@9
+	unsigned int g_seed; 
+	unsigned int nDWORD_Size;
+	BYTE *pEncryData; // ecx@2
+	unsigned int nRet;
 
-	v5 = dataSize;
-	v6 = dataSize + 4;
-	v7 = 0;
-	v8 = data;
-	*obfuscatedDataSize = dataSize + 4;
-	v9 = GetProcessHeap();
-	v10 = (BYTE *)HeapAlloc(v9, 8u, v6);
-	*obfuscatedData = v10;
-	if ( v10 )
+	
+	*obfuscatedDataSize = nInDataSize + 4;
+	BYTE *pNewMem = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, nInDataSize + 4);
+	*obfuscatedData = pNewMem;
+	if ( pNewMem )
 	{
-		
-		rand_s(&v11);
-		v12 = v5 >> 2;
-		*(DWORD *)v10 = v11;
-		for ( i = v10 + 4; v12; --v12 )
+		rand_s(&g_seed);
+		// 除以4，DWORD 双字即为4个字节
+		nDWORD_Size = nInDataSize >> 2;
+		// 保存随机种子
+		*(DWORD *)pNewMem = g_seed;
+
+		unsigned int nBitCount = 0; 
+		BYTE *pDataOpera = pInData;
+		for ( pEncryData = pNewMem + 4; nDWORD_Size; --nDWORD_Size )
 		{
-			v11 = 214013 * v11 + 2531011;
-			dataSize = v11;
+			// 生成新的随机数
+			g_seed = 214013 * g_seed + 2531011;
+			// 按位和随机数加密处理
 			do
 			{
-				v14 = *v8 ^ *((BYTE *)&dataSize + v7++);
-				*i = v14;
-				++v8;
-				++i;
+				char chTmp = *pDataOpera ^ *((BYTE *)&g_seed + nBitCount++);
+				*pEncryData = chTmp;
+				++pDataOpera;
+				++pEncryData;
 			}
-			while ( v7 < 4 );
-			v7 = 0;
+			while ( nBitCount < 4 );
+			nBitCount = 0;
 		}
-		dataSize = 214013 * v11 + 2531011;
-		v15 = 0;
-		if ( v5 & 3 )
+		// 生成新的随机数
+		unsigned int nNewSeed = 214013 * g_seed + 2531011;
+		// 与加密无关的代码
+		unsigned int nCount2 = 0;
+		if ( nNewSeed & 3 )
 		{
-			v16 = i - v8;
+			int nIndex = pEncryData - pDataOpera;
 			do
 			{
-				v17 = *v8 ^ *((BYTE *)&dataSize + v15++);
-				(v8++)[v16] = v17;
+				char chValue = *pDataOpera ^ *((BYTE *)&nNewSeed + nCount2++);
+				(pDataOpera++)[nIndex] = chValue;
 			}
-			while ( v15 < (v5 & 3) );
+			while ( nCount2 < (nNewSeed & 3) );
 		}
-		result = 0;
+		nRet = 0;
 	}
 	else
 	{
-		result = 0x8007000E;
+		nRet = 0x8007000E;
 	}
-	return result;
+	return nRet;
 }
 
 
 #define edge_1 L"Software\\Classes\\Local Settings\\Software\\Microsoft\\Windows\\CurrentVersion\\AppContainer\\Storage\\microsoft.microsoftedge_8wekyb3d8bbwe\\MicrosoftEdge\\Protected - It is a violation of Windows Policy to modify. See aka.ms/browserpolicy"
 
+
 int _tmain(int argc, _TCHAR* argv[])
 {
+	wprintf(L"Read Egde Home Page\n");
+	// 读取首页
+	ReadEgdeHomePageUrl();
+
+	wprintf(L"Set Egde Home Page\n");
+
+
     CString strSid;
 	CString strMachineGuid;
-	CString strUrl = L"https://github.com/binbibi/libedge";
+	CString strUrl = L"https://github.com/wanttobeno/libedge";
     CString strBlob;
 	LPBYTE lpBLOB = NULL;
 
@@ -669,11 +672,11 @@ int _tmain(int argc, _TCHAR* argv[])
 	// EDGE里面也计算了这个;但是没有使用basedecryptEscape参与下面的进一步计算
 	char* basedecrypt = b64_encode(decrypt, 0x10);
     char* basedecryptEscape = NULL;
-	EscapeString(&basedecryptEscape, (const char *)basedecrypt);
+	UrlCode(&basedecryptEscape, (const char *)basedecrypt);
     
 	char* basehash = b64_encode(patentHash, 0x8);
 	char* basehashEscape = NULL;
-	EscapeString(&basehashEscape, (const char *)basehash);
+	UrlCode(&basehashEscape, (const char *)basehash);
 	DWORD dwbasehashEscape = strlen(basehashEscape);
     
 	DWORD dwbuffertlv = 4 + 4 + 32 + dwstrlen + 4 + 4 + dwbasehashEscape;
@@ -693,22 +696,99 @@ int _tmain(int argc, _TCHAR* argv[])
 
 
 	// 计算这个
-    LPBYTE assasa = NULL;
-	DWORD dsasd = 0;
-	ObfuscateData(lpbuffertlv, dwbuffertlv, &assasa, (unsigned int*)&dsasd);
+    LPBYTE pRetData = NULL;
+	DWORD nRetDataSize = 0;
+	ObfuscateData(lpbuffertlv, dwbuffertlv, &pRetData, (unsigned int*)&nRetDataSize);
 
     // 
-	LPBYTE  lpProtectedHomepages = (LPBYTE)malloc(dsasd+4);
+	LPBYTE  lpProtectedHomepages = (LPBYTE)malloc(nRetDataSize+4);
 	memcpy(lpProtectedHomepages, &dwg1, 4);
-	memcpy(lpProtectedHomepages+4, assasa, dsasd);
+	memcpy(lpProtectedHomepages+4, pRetData, nRetDataSize);
 
 	HKEY hOpenedKey = NULL;
 	LONG nResult = RegOpenKeyEx(HKEY_CURRENT_USER, edge_1, 0, KEY_READ|KEY_WRITE, &hOpenedKey);
-	RegSetValueEx(hOpenedKey, L"ProtectedHomepages", NULL, REG_BINARY, lpProtectedHomepages, dsasd+4);
-
+	RegSetValueEx(hOpenedKey, L"ProtectedHomepages", NULL, REG_BINARY, lpProtectedHomepages, nRetDataSize+4);
+	RegCloseKey(hOpenedKey);
 	free(lpBLOB);
 	lpBLOB = NULL;
 
+	// 读取首页
+	ReadEgdeHomePageUrl();
 	return 0;
 }
 
+
+struct Edge_Home_Page {
+	DWORD version;
+	DWORD seed;  // 随机加密数
+	BYTE obfuscatedData[0];
+};
+
+int ReadEgdeHomePageUrl()
+{
+	HKEY hOpenedKey = NULL;
+	LONG nResult = RegOpenKeyEx(HKEY_CURRENT_USER, edge_1, 0, KEY_READ|KEY_WRITE, &hOpenedKey);
+
+	DWORD dwSize = 0;
+	LONG ret =  RegQueryValueEx(hOpenedKey,L"ProtectedHomepages", NULL, NULL,NULL,&dwSize);
+
+	if (ERROR_SUCCESS != ret)
+	{
+		OutputDebugString(L"error\n");
+		return -1;
+	}
+
+	BYTE *pEncryptionHomePage = (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, dwSize);
+	ret =  RegQueryValueEx(hOpenedKey,L"ProtectedHomepages", NULL, NULL,pEncryptionHomePage,&dwSize);
+
+	if (ERROR_SUCCESS != ret)
+	{
+		OutputDebugString(L"error\n");
+		return -2;
+	}
+
+	RegCloseKey(hOpenedKey);
+
+
+	Edge_Home_Page*homePage = (Edge_Home_Page*)pEncryptionHomePage;
+
+	unsigned int nDWORD_Size = (dwSize - 4 - 4) /4;
+
+	unsigned int nSeed = homePage->seed;
+
+	unsigned int nNewMemSize = nDWORD_Size*4;
+	BYTE *pNewMemData =  (BYTE *)HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, nNewMemSize);
+	unsigned int nBitCount = 0; 
+	BYTE *pDataOpera = homePage->obfuscatedData;
+	nDWORD_Size++;
+	for (BYTE *pDecryptData = pNewMemData; nDWORD_Size ; --nDWORD_Size )
+	{
+		// 生成新的随机数
+		nSeed = 214013 * nSeed + 2531011;
+		// 按位和随机数加密处理
+		do
+		{
+			char chTmp = *pDataOpera ^ *((BYTE *)&nSeed + nBitCount++);
+			*pDecryptData = chTmp;
+			++pDataOpera;
+			++pDecryptData;
+		}
+		while ( nBitCount < 4 );
+		nBitCount = 0;
+	}
+
+	// 这里偷懒，直接从解密后的内存中，查找http。
+	for (int i=0;i<nNewMemSize;i++)
+	{
+		__int64 num = *(__int64*)(pNewMemData+i);
+		if (num == 0x0070007400740068) // "http"
+		{
+			wchar_t* pHttpHeader = (wchar_t*)(pNewMemData+i);
+			if (pHttpHeader)
+			{
+				wprintf(L"HomePage:%s\n",pHttpHeader);
+			}
+		}
+	}
+	return 0;
+}

@@ -1,3 +1,17 @@
+
+#### Fork 修改说明
+
+1、优化加密算法
+
+2、添加Edge的首页的读取算法
+
+
+![snatshot.png](./snatshot.png)
+
+
+
+
+
 #                       EDGE主页算法项目说明
 
 ## 1 来源
